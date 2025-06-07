@@ -707,29 +707,174 @@ function populateOverview(data) {
     document.getElementById('timeSpentOverview').innerHTML = `<p class="text-gray-600">Your Avg: <span class="font-semibold">${data.timeSpent.studentAvg} ${data.timeSpent.studentUnit}</span></p><p class="text-gray-600">Class Avg: <span class="font-semibold">${data.timeSpent.classAvg} ${data.timeSpent.classUnit}</span></p>`;
 }
 
+// ... (rest of your script.js code up to initializeOverviewCharts) ...
+
 /**
  * Renders the main overview charts.
  * @param {object} data - The current student data.
  */
 function initializeOverviewCharts(data) {
-    ['scoreTrendChart', 'overallSkillChart'].forEach(id => {
-        const instance = Chart.getChart(id);
-        if (instance) instance.destroy(); // Destroy existing chart instance if it exists
-    });
+    // --- Score Trend Chart ---
+    const scoreTrendChartCanvas = document.getElementById('scoreTrendChart');
+    if (!scoreTrendChartCanvas) {
+        console.warn("Score Trend Chart canvas not found. Cannot initialize chart.");
+        // If the canvas is genuinely missing, add a placeholder message instead.
+        const parentDiv = document.querySelector('.themed-card.chart-container .themed-card-body'); // Find the parent div
+        if (parentDiv && !parentDiv.querySelector('canvas')) { // Only add if no canvas is present
+             parentDiv.innerHTML = '<p class="text-center p-4 text-gray-500">Score trend chart not available (canvas element missing or replaced).</p>';
+        }
+        return; // Exit if canvas is missing
+    }
 
-    // Ensure data exists before creating charts
+    const existingScoreTrendChart = Chart.getChart('scoreTrendChart');
+    if (existingScoreTrendChart) {
+        existingScoreTrendChart.destroy(); // Destroy existing chart instance if it exists
+    }
+
     if (data.scoreTrend && data.scoreTrend.labels.length > 0) {
-        new Chart('scoreTrendChart', { type: 'line', data: { labels: data.scoreTrend.labels, datasets: [{ label: 'Your Score', data: data.scoreTrend.studentScores, borderColor: '#2a5266', tension: 0.1 }, { label: 'Class Average', data: data.scoreTrend.classAvgScores, borderColor: '#757575', borderDash: [5, 5], tension: 0.1 }] } });
+        // Ensure the canvas element is still there to draw on
+        scoreTrendChartCanvas.style.display = 'block'; // Ensure it's visible if hidden
+        new Chart(scoreTrendChartCanvas, {
+            type: 'line',
+            data: {
+                labels: data.scoreTrend.labels,
+                datasets: [
+                    { label: 'Your Score', data: data.scoreTrend.studentScores, borderColor: '#2a5266', tension: 0.1 },
+                    { label: 'Class Average', data: data.scoreTrend.classAvgScores, borderColor: '#757575', borderDash: [5, 5], tension: 0.1 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            font: {
+                                size: 10
+                            }
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 1600, // Max score for SAT Total
+                        title: {
+                            display: true,
+                            text: 'Score'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Assessment'
+                        }
+                    }
+                }
+            }
+        });
     } else {
-        document.getElementById('scoreTrendChart').parentNode.innerHTML = '<p class="text-center p-4 text-gray-500">No score trend data available.</p>';
+        // Hide canvas and show "No data available" message
+        scoreTrendChartCanvas.style.display = 'none'; // Hide the canvas
+        scoreTrendChartCanvas.parentNode.innerHTML += '<p class="text-center p-4 text-gray-500" id="scoreTrendChartNoData">No score trend data available.</p>';
+        // Make sure previous "No data" message is removed if data becomes available
+        const existingNoData = document.getElementById('scoreTrendChartNoData');
+        if (existingNoData) existingNoData.remove();
+    }
+
+
+    // --- Overall Skill Performance Chart ---
+    const overallSkillChartCanvas = document.getElementById('overallSkillChart');
+    if (!overallSkillChartCanvas) {
+        console.warn("Overall Skill Chart canvas not found. Cannot initialize chart.");
+        // Similar placeholder logic for the overall skill chart's parent
+        const parentDiv = document.querySelector('.themed-card.chart-container:nth-of-type(2) .themed-card-body');
+        if (parentDiv && !parentDiv.querySelector('canvas')) {
+             parentDiv.innerHTML = '<p class="text-center p-4 text-gray-500">Overall skill performance chart not available (canvas element missing or replaced).</p>';
+        }
+        return; // Exit if canvas is missing
+    }
+
+    const existingOverallSkillChart = Chart.getChart('overallSkillChart');
+    if (existingOverallSkillChart) {
+        existingOverallSkillChart.destroy();
     }
 
     if (data.overallSkillPerformance && data.overallSkillPerformance.labels.length > 0) {
-        new Chart('overallSkillChart', { type: 'bar', data: { labels: data.overallSkillPerformance.labels, datasets: [{ label: 'Your Accuracy', data: data.overallSkillPerformance.studentAccuracy, backgroundColor: 'rgba(42, 82, 102, 0.8)' }, { label: 'Class Average', data: data.overallSkillPerformance.classAvgAccuracy, backgroundColor: 'rgba(117, 117, 117, 0.7)' }] }, options: { scales: { y: { beginAtZero: true, max: 100 } } } });
+        overallSkillChartCanvas.style.display = 'block'; // Ensure it's visible if hidden
+        new Chart(overallSkillChartCanvas, {
+            type: 'bar',
+            data: {
+                labels: data.overallSkillPerformance.labels,
+                datasets: [
+                    { label: 'Your Accuracy', data: data.overallSkillPerformance.studentAccuracy, backgroundColor: 'rgba(42, 82, 102, 0.8)' },
+                    { label: 'Class Average', data: data.overallSkillPerformance.classAvgAccuracy, backgroundColor: 'rgba(117, 117, 117, 0.7)' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            font: {
+                                size: 10
+                            }
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y + '%';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: 'Accuracy (%)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Subject'
+                        }
+                    }
+                }
+            }
+        });
     } else {
-        document.getElementById('overallSkillChart').parentNode.innerHTML = '<p class="text-center p-4 text-gray-500">No overall skill performance data available.</p>';
+        // Hide canvas and show "No data available" message
+        overallSkillChartCanvas.style.display = 'none'; // Hide the canvas
+        overallSkillChartCanvas.parentNode.innerHTML += '<p class="text-center p-4 text-gray-500" id="overallSkillChartNoData">No overall skill performance data available.</p>';
+         // Make sure previous "No data" message is removed if data becomes available
+        const existingNoData = document.getElementById('overallSkillChartNoData');
+        if (existingNoData) existingNoData.remove();
     }
 }
+// ... (rest of your script.js code below initializeOverviewCharts) ...
 
 // --- Subject-Specific Functions ---
 

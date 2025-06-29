@@ -19,56 +19,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     // --- HELPER FUNCTIONS ---
-
-    // --- NEW: More Robust CSV Parsing Function ---
-    // This new version correctly handles commas inside of quoted fields.
     function parseCSV(text) {
-        let lines = text.split('\n');
+        const lines = text.split('\n');
         const headers = lines[0].split(',').map(h => h.trim());
         const result = [];
-
         for (let i = 1; i < lines.length; i++) {
             if (!lines[i]) continue;
-
             const obj = {};
-            let values = [];
-            let current_value = '';
-            let in_quotes = false;
-
-            for (const char of lines[i]) {
-                if (char === '"' && in_quotes) {
-                    in_quotes = false;
-                } else if (char === '"' && !in_quotes) {
-                    in_quotes = true;
-                } else if (char === ',' && !in_quotes) {
-                    values.push(current_value.trim());
-                    current_value = '';
-                } else {
-                    current_value += char;
-                }
-            }
-            values.push(current_value.trim());
-
+            const currentline = lines[i].split(',');
             for (let j = 0; j < headers.length; j++) {
-                let value = values[j] || '';
-                // Remove leading/trailing quotes if they exist
-                if (value.startsWith('"') && value.endsWith('"')) {
-                    value = value.substring(1, value.length - 1);
-                }
-                obj[headers[j]] = value;
+                obj[headers[j]] = currentline[j].trim();
             }
             result.push(obj);
         }
         return result;
     }
 
-
     function processScoringData(scoringArray) {
         const lookupTables = { RW: {}, Math: {} };
         const rawScoreKey = "Raw Score (# of Correct Answers)";
-        const rwScaledScoreKey = `Test ${TARGET_TEST_NUMBER} RW Upper`;
-        const mathScaledScoreKey = `Test ${TARGET_TEST_NUMBER} Math Upper`;
-        
+        const rwScaledScoreKey = "Test 0 RW Upper";
+        const mathScaledScoreKey = "Test 0 Math Upper";
         scoringArray.forEach(row => {
             const rawScore = row[rawScoreKey];
             if (row[rwScaledScoreKey] !== undefined) {
@@ -84,7 +55,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const table = subject === 'RW' ? lookupMap.RW : lookupMap.Math;
         return table[rawScore] || 200;
     };
-
 
     // --- MAIN EXECUTION ---
     let studentEmail = localStorage.getItem('studentEmail');
@@ -108,14 +78,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             fetch(fileUrls.submissions), fetch(fileUrls.scoring), fetch(fileUrls.eng1),
             fetch(fileUrls.eng2), fetch(fileUrls.math1), fetch(fileUrls.math2)
         ]);
-
-        const responses = [submissionsRes, scoringRes, eng1Res, eng2Res, math1Res, math2Res];
-        const responseNames = Object.keys(fileUrls);
-        responses.forEach((response, index) => {
-            if (!response.ok) {
-                throw new Error(`Failed to fetch ${responseNames[index]} (${fileUrls[responseNames[index]]}). Status: ${response.status} ${response.statusText}`);
-            }
-        });
 
         const submissionsText = await submissionsRes.text();
         const scoringArray = await scoringRes.json();
@@ -166,19 +128,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         Object.keys(modulesConfig).forEach(moduleName => {
             const moduleWrapper = document.createElement('div');
             moduleWrapper.className = 'module';
+            
             const questionsInModule = masterQuestionData.filter(q => q.module === moduleName);
             const moduleRawCorrect = questionsInModule.filter(q => q.is_correct).length;
+            
             const header = document.createElement('div');
             header.className = 'module-header';
             header.textContent = `${moduleName} (${moduleRawCorrect}/${questionsInModule.length})`;
             moduleWrapper.appendChild(header);
+
             const list = document.createElement('div');
             list.className = 'question-list';
+            
             questionsInModule.forEach(q => {
                 const link = document.createElement('a');
                 link.href = '#feedback-container';
                 link.textContent = `Q${q.question_number}`;
                 link.setAttribute('data-question-id', q.question_id);
+
+                // --- LOGIC ADDED FOR COLOR CODING ---
                 if (q.student_answer === undefined) {
                     link.classList.add('q-unanswered');
                 } else if (q.is_correct) {
@@ -186,8 +154,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else {
                     link.classList.add('q-incorrect');
                 }
+                // --- END OF ADDED LOGIC ---
+
                 list.appendChild(link);
             });
+
             moduleWrapper.appendChild(list);
             modulesContainer.appendChild(moduleWrapper);
         });
@@ -204,14 +175,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
     } catch (error) {
-        console.error("ERROR:", error);
-        feedbackContent.innerHTML = `<p style="color:red;"><strong>An error occurred.</strong><br>${error.message}.<br><br>Please check the console for more details.</p>`;
+        console.error("Failed to load or process diagnostic data:", error);
+        feedbackContent.innerHTML = `<p style="color:red;">Error: Could not load data. Please check the console for details and ensure all GitHub URLs are correct.</p>`;
     }
 
     function displayFeedback(q) {
+        // This function remains the same as the previous version
         const feedbackContent = document.getElementById('feedback-content');
         const statusClass = q.is_correct ? 'status-correct' : (q.student_answer === undefined ? '' : 'status-incorrect');
         const statusText = q.is_correct ? 'Correct' : (q.student_answer === undefined ? 'Unanswered' : 'Incorrect');
+
         const getChoiceLetter = (answerValue) => {
             if (!answerValue) return "N/A";
             if (q.option_a === answerValue) return 'A';
@@ -221,12 +194,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (q.option_e === answerValue) return 'E';
             return answerValue;
         };
+        
         const correctChoiceLetter = getChoiceLetter(q.correct_answer);
+
         let questionDisplay = '';
         if (q.passage_content) {
             questionDisplay += `<p><em>${q.passage_content.replace(/______/g, '______')}</em></p>`;
         }
         questionDisplay += `<p><b>${q.question_stem || ''}</b></p>`;
+
         let html = `
             <p><span class="${statusClass}">${statusText}</span></p>
             <p><strong>Question:</strong> ${q.question_number} (Module: ${q.module})</p>
@@ -236,6 +212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <p><strong>Explanation:</strong></p>
             <pre>${q.explanation_ai_enhanced || q.explanation_original || 'Explanation not available.'}</pre>
         `;
+
         feedbackContent.innerHTML = html;
         document.getElementById('feedback-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }

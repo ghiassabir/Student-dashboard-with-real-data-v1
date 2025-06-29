@@ -36,10 +36,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         return result;
     }
+
+    // NEW: Function to process the large scoring array into an efficient lookup map
+    function processScoringData(scoringArray) {
+        const lookupTables = { RW: {}, Math: {} };
+        const rawScoreKey = "Raw Score (# of Correct Answers)";
+        
+        // We'll use Test 0 for this diagnostic, as an example
+        const rwScaledScoreKey = "Test 0 RW Lower";
+        const mathScaledScoreKey = "Test 0 Math Lower";
+
+        scoringArray.forEach(row => {
+            const rawScore = row[rawScoreKey];
+            
+            // Check if this row is for Reading/Writing
+            if (row[rwScaledScoreKey] !== undefined) {
+                lookupTables.RW[rawScore] = row[rwScaledScoreKey];
+            }
+            // Check if this row is for Math
+            else if (row[mathScaledScoreKey] !== undefined) {
+                lookupTables.Math[rawScore] = row[mathScaledScoreKey];
+            }
+        });
+        return lookupTables;
+    }
     
-    // Function to get scaled scores from the fetched scoring table
-    const getScaledScore = (rawScore, subject, scoringTable) => {
-        const table = subject === 'RW' ? scoringTable.RW : scoringTable.Math;
+    // UPDATED: This function now uses the processed lookup map
+    const getScaledScore = (rawScore, subject, lookupMap) => {
+        const table = subject === 'RW' ? lookupMap.RW : lookupMap.Math;
         return table[rawScore] || 200; // Return score from table or 200 if not found
     };
 
@@ -72,13 +96,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         ]);
 
         const submissionsText = await submissionsRes.text();
-        const scoringTable = await scoringRes.json();
+        const scoringArray = await scoringRes.json();
         const questionMetadata = {
             "English Module 1": await eng1Res.json(),
             "English Module 2": await eng2Res.json(),
             "Math Module 1": await math1Res.json(),
             "Math Module 2": await math2Res.json()
         };
+        
+        // NEW STEP: Process the scoring data into a lookup map
+        const scoringTable = processScoringData(scoringArray);
         
         // 3. Parse and Filter Student Submissions
         const allSubmissions = parseCSV(submissionsText);
@@ -90,7 +117,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         // 4. Merge data, Calculate scores, and Render page
-        // (This logic is similar to before, but operates on the fetched data)
         let masterQuestionData = [];
         Object.keys(questionMetadata).forEach(moduleName => {
             questionMetadata[moduleName].forEach(meta => {
@@ -109,6 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const totalRwQuestions = modulesConfig["English Module 1"].count + modulesConfig["English Module 2"].count;
         const totalMathQuestions = modulesConfig["Math Module 1"].count + modulesConfig["Math Module 2"].count;
         
+        // UPDATED CALL: Pass the new processed lookup map
         const rwScaledScore = getScaledScore(rwRawScore, 'RW', scoringTable);
         const mathScaledScore = getScaledScore(mathRawScore, 'Math', scoringTable);
         const totalScaledScore = rwScaledScore + mathScaledScore;

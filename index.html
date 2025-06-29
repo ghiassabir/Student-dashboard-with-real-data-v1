@@ -35,8 +35,17 @@
             background-color: #f9f9f9;
             min-width: 2em;
             text-align: center;
+            font-weight: bold;
+            transition: background-color 0.2s;
         }
-        .question-list a:hover { background-color: #e0e7ff; border-color: #2a5266; }
+        .question-list a:hover { background-color: #e0e7ff; }
+
+        /* --- ADDED FOR COLOR CODING --- */
+        .q-correct { border-color: #198754; color: #198754; }
+        .q-incorrect { border-color: #bb2d3b; color: #bb2d3b; background-color: #fff1f2; }
+        .q-unanswered { border-color: #adb5bd; color: #6c757d; }
+        /* --- END OF ADDED STYLES --- */
+
         #feedback-container { background-color: #f8f9fa; border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px; min-height: 150px; margin-top: 25px; }
         #feedback-content .status-correct { color: #198754; font-weight: bold; font-size: 1.2em; }
         #feedback-content .status-incorrect { color: #bb2d3b; font-weight: bold; font-size: 1.2em; }
@@ -52,7 +61,6 @@
     </style>
 </head>
 <body>
-
     <header>
         <h1>Diagnostic Test Results</h1>
         <table id="score-table">
@@ -72,19 +80,15 @@
             </tbody>
         </table>
     </header>
-
     <main>
-        <div id="modules-container">
-            </div>
+        <div id="modules-container"></div>
     </main>
-
     <section id="feedback-container">
         <h2>Question Feedback</h2>
         <div id="feedback-content">
             <p>Please click on a question number above to see the details.</p>
         </div>
     </section>
-
     <script src="script.js"></script>
 </body>
 </html>

@@ -35,16 +35,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return result;
     }
 
-    // This function is now updated to use the "Upper" score range
     function processScoringData(scoringArray) {
         const lookupTables = { RW: {}, Math: {} };
         const rawScoreKey = "Raw Score (# of Correct Answers)";
-
-        // --- CHANGED LINES START HERE ---
-        // The script now dynamically creates the column names for the "Upper" range.
+        // Using "Upper" range as requested previously
         const rwScaledScoreKey = `Test ${TARGET_TEST_NUMBER} RW Upper`;
         const mathScaledScoreKey = `Test ${TARGET_TEST_NUMBER} Math Upper`;
-        // --- CHANGED LINES END HERE ---
         
         console.log(`Using scoring columns: "${rwScaledScoreKey}" and "${mathScaledScoreKey}"`);
 
@@ -66,7 +62,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
     // --- MAIN EXECUTION ---
-    // The main execution block remains the same.
     let studentEmail = localStorage.getItem('studentEmail');
     if (!studentEmail) {
         studentEmail = prompt("Please enter your student email address:");
@@ -88,6 +83,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             fetch(fileUrls.submissions), fetch(fileUrls.scoring), fetch(fileUrls.eng1),
             fetch(fileUrls.eng2), fetch(fileUrls.math1), fetch(fileUrls.math2)
         ]);
+
+        // Error checking for each response
+        const responses = [submissionsRes, scoringRes, eng1Res, eng2Res, math1Res, math2Res];
+        const responseNames = Object.keys(fileUrls);
+        responses.forEach((response, index) => {
+            if (!response.ok) {
+                throw new Error(`Failed to fetch ${responseNames[index]} (${fileUrls[responseNames[index]]}). Status: ${response.status} ${response.statusText}`);
+            }
+        });
 
         const submissionsText = await submissionsRes.text();
         const scoringArray = await scoringRes.json();
@@ -138,18 +142,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         Object.keys(modulesConfig).forEach(moduleName => {
             const moduleWrapper = document.createElement('div');
             moduleWrapper.className = 'module';
-            
             const questionsInModule = masterQuestionData.filter(q => q.module === moduleName);
             const moduleRawCorrect = questionsInModule.filter(q => q.is_correct).length;
-            
             const header = document.createElement('div');
             header.className = 'module-header';
             header.textContent = `${moduleName} (${moduleRawCorrect}/${questionsInModule.length})`;
             moduleWrapper.appendChild(header);
-
             const list = document.createElement('div');
             list.className = 'question-list';
-            
             questionsInModule.forEach(q => {
                 const link = document.createElement('a');
                 link.href = '#feedback-container';
@@ -164,7 +164,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 list.appendChild(link);
             });
-
             moduleWrapper.appendChild(list);
             modulesContainer.appendChild(moduleWrapper);
         });

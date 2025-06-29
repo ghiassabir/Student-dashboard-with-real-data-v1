@@ -1,156 +1,181 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
 
-    // --- DATA GENERATION & MOCKING ---
-
-    const modulesConfig = {
-        "English Module 1": { type: 'RW', count: 27 },
-        "English Module 2": { type: 'RW', count: 27 },
-        "Math Module 1": { type: 'Math', count: 22 },
-        "Math Module 2": { type: 'Math', count: 22 }
+    // --- CONFIGURATION ---
+    // ACTION REQUIRED: Replace these placeholder URLs with the actual "Raw" URLs from your GitHub repository.
+    const fileUrls = {
+        submissions: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSxW6lYLIfH1r9954znKNbcE90y5qit38yhhyhZnTv_pMCM46H6DdFzQ5ekkJbqtAwfwVBbNegOVzmU/pub?gid=0&single=true&output=csv',
+        scoring: 'https://raw.githubusercontent.com/ghiassabir/Student-dashboard-with-real-data-v1/refs/heads/Diagnostic-Dashboard/scoring/Raw_to_Scaled_Conversion_table_RW.json',
+        eng1: 'https://raw.githubusercontent.com/ghiassabir/Student-dashboard-with-real-data-v1/refs/heads/Diagnostic-Dashboard/metadata/DT-T0-RW-M1.json',
+        eng2: 'https://raw.githubusercontent.com/ghiassabir/Student-dashboard-with-real-data-v1/refs/heads/Diagnostic-Dashboard/metadata/DT-T0-RW-M2.json',
+        math1: 'https://raw.githubusercontent.com/ghiassabir/Student-dashboard-with-real-data-v1/refs/heads/Diagnostic-Dashboard/metadata/DT-T0-MT-M1.json',
+        math2: 'https://raw.githubusercontent.com/ghiassabir/Student-dashboard-with-real-data-v1/refs/heads/Diagnostic-Dashboard/metadata/DT-T0-MT-M2.json',
     };
 
-    let studentSubmissions = [];
-    let questionMetadata = {};
-    const choices = ['A', 'B', 'C', 'D'];
+    const modulesConfig = {
+        "English Module 1": { type: 'RW', count: 27, dataKey: 'eng1' },
+        "English Module 2": { type: 'RW', count: 27, dataKey: 'eng2' },
+        "Math Module 1": { type: 'Math', count: 22, dataKey: 'math1' },
+        "Math Module 2": { type: 'Math', count: 22, dataKey: 'math2' }
+    };
 
-    // Programmatically generate more realistic mock data
-    for (const moduleName in modulesConfig) {
-        questionMetadata[moduleName] = [];
-        const config = modulesConfig[moduleName];
-        for (let i = 1; i <= config.count; i++) {
-            const questionId = `${moduleName.replace(/ /g, '-')}-Q${i}`;
-            const isCorrect = Math.random() > 0.3; // Simulate ~70% accuracy
-            const correctAnswer = choices[Math.floor(Math.random() * choices.length)];
-            let studentAnswer;
+    // --- HELPER FUNCTIONS ---
 
-            if (isCorrect) {
-                studentAnswer = correctAnswer;
-            } else {
-                // Pick a random wrong answer
-                const wrongChoices = choices.filter(c => c !== correctAnswer);
-                studentAnswer = wrongChoices[Math.floor(Math.random() * wrongChoices.length)];
+    // Simple function to parse CSV text into an array of objects
+    function parseCSV(text) {
+        const lines = text.split('\n');
+        const headers = lines[0].split(',').map(h => h.trim());
+        const result = [];
+        for (let i = 1; i < lines.length; i++) {
+            if (!lines[i]) continue;
+            const obj = {};
+            const currentline = lines[i].split(',');
+            for (let j = 0; j < headers.length; j++) {
+                obj[headers[j]] = currentline[j].trim();
             }
-            
-            // Create submission data
-            studentSubmissions.push({
-                question_id: questionId,
-                is_correct: isCorrect,
-                student_answer: studentAnswer
-            });
+            result.push(obj);
+        }
+        return result;
+    }
+    
+    // Function to get scaled scores from the fetched scoring table
+    const getScaledScore = (rawScore, subject, scoringTable) => {
+        const table = subject === 'RW' ? scoringTable.RW : scoringTable.Math;
+        return table[rawScore] || 200; // Return score from table or 200 if not found
+    };
 
-            // Create metadata
-            questionMetadata[moduleName].push({
-                question_id: questionId,
-                question_number: i,
-                question_text: `This is the full text for Question ${i}. It might be a long passage or a complex word problem to test the layout and formatting.`,
-                options: { A: 'Option A text', B: 'Option B text', C: 'Option C text', D: 'Option D text' },
-                correct_answer: correctAnswer,
-                explanation: `This is the detailed explanation for ${moduleName}, Question ${i}. The correct answer is ${correctAnswer} because of specific reasons outlined here.`
-            });
+
+    // --- MAIN EXECUTION ---
+
+    // 1. Get Student Email
+    let studentEmail = localStorage.getItem('studentEmail');
+    if (!studentEmail) {
+        studentEmail = prompt("Please enter your student email address:");
+        if (studentEmail) {
+            localStorage.setItem('studentEmail', studentEmail);
+        } else {
+            alert("Email is required to view the report.");
+            return;
         }
     }
 
-    // --- SCALED SCORE CONVERSION LOGIC ---
-    const getScaledScore = (rawScore, subject) => {
-        const minScore = 200;
-        const maxScore = 800;
-        if (subject === 'RW') {
-            const maxRaw = modulesConfig["English Module 1"].count + modulesConfig["English Module 2"].count; // 54
-            if (rawScore <= 0) return 200;
-            if (rawScore >= maxRaw) return 800;
-            return Math.round(200 + (rawScore / maxRaw) * 600); // Simplified linear scaling
-        }
-        if (subject === 'Math') {
-            const maxRaw = modulesConfig["Math Module 1"].count + modulesConfig["Math Module 2"].count; // 44
-             if (rawScore <= 0) return 200;
-            if (rawScore >= maxRaw) return 800;
-            return Math.round(200 + (rawScore / maxRaw) * 600);
-        }
-        return 0;
-    };
+    // Show a loading message
+    const feedbackContent = document.getElementById('feedback-content');
+    feedbackContent.innerHTML = '<p>Loading student data...</p>';
 
+    try {
+        // 2. Fetch all data files from GitHub concurrently
+        const [
+            submissionsRes, scoringRes, eng1Res, eng2Res, math1Res, math2Res
+        ] = await Promise.all([
+            fetch(fileUrls.submissions), fetch(fileUrls.scoring), fetch(fileUrls.eng1),
+            fetch(fileUrls.eng2), fetch(fileUrls.math1), fetch(fileUrls.math2)
+        ]);
 
-    // --- MAIN LOGIC ---
-
-    // 1. Merge data
-    let masterQuestionData = [];
-    Object.keys(questionMetadata).forEach(moduleName => {
-        questionMetadata[moduleName].forEach(meta => {
-            const submission = studentSubmissions.find(s => s.question_id === meta.question_id);
-            masterQuestionData.push({ module: moduleName, ...meta, ...submission });
-        });
-    });
-
-    // 2. Calculate Scores
-    const rwRawScore = masterQuestionData.filter(q => modulesConfig[q.module].type === 'RW' && q.is_correct).length;
-    const mathRawScore = masterQuestionData.filter(q => modulesConfig[q.module].type === 'Math' && q.is_correct).length;
-    const totalRwQuestions = modulesConfig["English Module 1"].count + modulesConfig["English Module 2"].count;
-    const totalMathQuestions = modulesConfig["Math Module 1"].count + modulesConfig["Math Module 2"].count;
-    
-    const rwScaledScore = getScaledScore(rwRawScore, 'RW');
-    const mathScaledScore = getScaledScore(mathRawScore, 'Math');
-    const totalScaledScore = rwScaledScore + mathScaledScore;
-
-    // 3. Render Page
-    // Scores
-    document.getElementById('english-score').textContent = `${rwRawScore}/${totalRwQuestions} Raw | ${rwScaledScore} Scaled`;
-    document.getElementById('math-score').textContent = `${mathRawScore}/${totalMathQuestions} Raw | ${mathScaledScore} Scaled`;
-    document.getElementById('total-score').textContent = `${rwRawScore + mathRawScore}/${totalRwQuestions + totalMathQuestions} Raw | ${totalScaledScore} Scaled`;
-
-    // Modules
-    const modulesContainer = document.getElementById('modules-container');
-    Object.keys(modulesConfig).forEach(moduleName => {
-        const moduleWrapper = document.createElement('div');
-        moduleWrapper.className = 'module';
+        const submissionsText = await submissionsRes.text();
+        const scoringTable = await scoringRes.json();
+        const questionMetadata = {
+            "English Module 1": await eng1Res.json(),
+            "English Module 2": await eng2Res.json(),
+            "Math Module 1": await math1Res.json(),
+            "Math Module 2": await math2Res.json()
+        };
         
-        // Calculate module-specific raw score
-        const questionsInModule = masterQuestionData.filter(q => q.module === moduleName);
-        const moduleRawCorrect = questionsInModule.filter(q => q.is_correct).length;
-        const totalModuleQuestions = questionsInModule.length;
+        // 3. Parse and Filter Student Submissions
+        const allSubmissions = parseCSV(submissionsText);
+        const studentSubmissions = allSubmissions.filter(row => row.student_gmail_id === studentEmail);
 
-        const header = document.createElement('div');
-        header.className = 'module-header';
-        header.textContent = `${moduleName} (${moduleRawCorrect}/${totalModuleQuestions})`; // Add score to header
-        moduleWrapper.appendChild(header);
-
-        const list = document.createElement('div');
-        list.className = 'question-list';
+        if (studentSubmissions.length === 0) {
+            alert(`No submission data found for email: ${studentEmail}`);
+            return;
+        }
         
-        questionsInModule.forEach(q => {
-            const link = document.createElement('a');
-            link.href = '#feedback-container';
-            link.textContent = `Q${q.question_number}`;
-            link.setAttribute('data-question-id', q.question_id);
-            list.appendChild(link);
+        // 4. Merge data, Calculate scores, and Render page
+        // (This logic is similar to before, but operates on the fetched data)
+        let masterQuestionData = [];
+        Object.keys(questionMetadata).forEach(moduleName => {
+            questionMetadata[moduleName].forEach(meta => {
+                const submission = studentSubmissions.find(s => s.question_id === meta.question_id) || {};
+                masterQuestionData.push({ 
+                    module: moduleName, 
+                    is_correct: submission.is_correct === 'TRUE', // CSV values are strings
+                    student_answer: submission.student_answer,
+                    ...meta 
+                });
+            });
         });
 
-        moduleWrapper.appendChild(list);
-        modulesContainer.appendChild(moduleWrapper);
-    });
+        const rwRawScore = masterQuestionData.filter(q => modulesConfig[q.module].type === 'RW' && q.is_correct).length;
+        const mathRawScore = masterQuestionData.filter(q => modulesConfig[q.module].type === 'Math' && q.is_correct).length;
+        const totalRwQuestions = modulesConfig["English Module 1"].count + modulesConfig["English Module 2"].count;
+        const totalMathQuestions = modulesConfig["Math Module 1"].count + modulesConfig["Math Module 2"].count;
+        
+        const rwScaledScore = getScaledScore(rwRawScore, 'RW', scoringTable);
+        const mathScaledScore = getScaledScore(mathRawScore, 'Math', scoringTable);
+        const totalScaledScore = rwScaledScore + mathScaledScore;
 
-    // 4. Handle Interactivity
-    modulesContainer.addEventListener('click', (event) => {
-        if (event.target.tagName === 'A') {
-            event.preventDefault();
-            const questionId = event.target.getAttribute('data-question-id');
-            const questionData = masterQuestionData.find(q => q.question_id === questionId);
-            displayFeedback(questionData);
-        }
-    });
+        document.getElementById('english-score').textContent = `${rwRawScore}/${totalRwQuestions} Raw | ${rwScaledScore} Scaled`;
+        document.getElementById('math-score').textContent = `${mathRawScore}/${totalMathQuestions} Raw | ${mathScaledScore} Scaled`;
+        document.getElementById('total-score').textContent = `${rwRawScore + mathRawScore}/${totalRwQuestions + totalMathQuestions} Raw | ${totalScaledScore} Scaled`;
+
+        const modulesContainer = document.getElementById('modules-container');
+        modulesContainer.innerHTML = ''; // Clear previous content
+        Object.keys(modulesConfig).forEach(moduleName => {
+            const moduleWrapper = document.createElement('div');
+            moduleWrapper.className = 'module';
+            
+            const questionsInModule = masterQuestionData.filter(q => q.module === moduleName);
+            const moduleRawCorrect = questionsInModule.filter(q => q.is_correct).length;
+            
+            const header = document.createElement('div');
+            header.className = 'module-header';
+            header.textContent = `${moduleName} (${moduleRawCorrect}/${questionsInModule.length})`;
+            moduleWrapper.appendChild(header);
+
+            const list = document.createElement('div');
+            list.className = 'question-list';
+            
+            questionsInModule.forEach(q => {
+                const link = document.createElement('a');
+                link.href = '#feedback-container';
+                link.textContent = `Q${q.question_number}`;
+                link.setAttribute('data-question-id', q.question_id);
+                list.appendChild(link);
+            });
+
+            moduleWrapper.appendChild(list);
+            modulesContainer.appendChild(moduleWrapper);
+        });
+        
+        feedbackContent.innerHTML = '<p>Please click on a question number above to see the details.</p>';
+
+
+        // 5. Handle Interactivity
+        modulesContainer.addEventListener('click', (event) => {
+            if (event.target.tagName === 'A') {
+                event.preventDefault();
+                const questionId = event.target.getAttribute('data-question-id');
+                const questionData = masterQuestionData.find(q => q.question_id === questionId);
+                displayFeedback(questionData);
+            }
+        });
+
+    } catch (error) {
+        console.error("Failed to load or process diagnostic data:", error);
+        feedbackContent.innerHTML = `<p style="color:red;">Error: Could not load data. Please check the console for details and ensure all GitHub URLs are correct.</p>`;
+    }
 
     function displayFeedback(q) {
-        const feedbackContent = document.getElementById('feedback-content');
         const statusClass = q.is_correct ? 'status-correct' : 'status-incorrect';
         const statusText = q.is_correct ? 'Correct' : 'Incorrect';
 
         let html = `
             <p><span class="${statusClass}">${statusText}</span></p>
             <p><strong>Question:</strong> ${q.question_number} (Module: ${q.module})</p>
-            <div class="question-text">${q.question_text}</div>
+            <div class="question-text">${q.question_text || 'Question text not available.'}</div>
             <p><strong>Your Choice:</strong> ${q.student_answer || "No Answer"}</p>
             <p><strong>Correct Choice:</strong> ${q.correct_answer}</p>
             <p><strong>Explanation:</strong></p>
-            <pre>${q.explanation}</pre>
+            <pre>${q.explanation || 'Explanation not available.'}</pre>
         `;
 
         feedbackContent.innerHTML = html;

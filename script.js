@@ -20,7 +20,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- HELPER FUNCTIONS ---
 
-    // Simple function to parse CSV text into an array of objects
     function parseCSV(text) {
         const lines = text.split('\n');
         const headers = lines[0].split(',').map(h => h.trim());
@@ -37,40 +36,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         return result;
     }
 
-    // NEW: Function to process the large scoring array into an efficient lookup map
     function processScoringData(scoringArray) {
         const lookupTables = { RW: {}, Math: {} };
         const rawScoreKey = "Raw Score (# of Correct Answers)";
-        
-        // We'll use Test 0 for this diagnostic, as an example
         const rwScaledScoreKey = "Test 0 RW Lower";
         const mathScaledScoreKey = "Test 0 Math Lower";
 
         scoringArray.forEach(row => {
             const rawScore = row[rawScoreKey];
-            
-            // Check if this row is for Reading/Writing
             if (row[rwScaledScoreKey] !== undefined) {
                 lookupTables.RW[rawScore] = row[rwScaledScoreKey];
-            }
-            // Check if this row is for Math
-            else if (row[mathScaledScoreKey] !== undefined) {
+            } else if (row[mathScaledScoreKey] !== undefined) {
                 lookupTables.Math[rawScore] = row[mathScaledScoreKey];
             }
         });
         return lookupTables;
     }
     
-    // UPDATED: This function now uses the processed lookup map
     const getScaledScore = (rawScore, subject, lookupMap) => {
         const table = subject === 'RW' ? lookupMap.RW : lookupMap.Math;
-        return table[rawScore] || 200; // Return score from table or 200 if not found
+        return table[rawScore] || 200;
     };
 
 
     // --- MAIN EXECUTION ---
 
-    // 1. Get Student Email
     let studentEmail = localStorage.getItem('studentEmail');
     if (!studentEmail) {
         studentEmail = prompt("Please enter your student email address:");
@@ -82,12 +72,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Show a loading message
     const feedbackContent = document.getElementById('feedback-content');
     feedbackContent.innerHTML = '<p>Loading student data...</p>';
 
     try {
-        // 2. Fetch all data files from GitHub concurrently
         const [
             submissionsRes, scoringRes, eng1Res, eng2Res, math1Res, math2Res
         ] = await Promise.all([
@@ -104,10 +92,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             "Math Module 2": await math2Res.json()
         };
         
-        // NEW STEP: Process the scoring data into a lookup map
         const scoringTable = processScoringData(scoringArray);
-        
-        // 3. Parse and Filter Student Submissions
         const allSubmissions = parseCSV(submissionsText);
         const studentSubmissions = allSubmissions.filter(row => row.student_gmail_id === studentEmail);
 
@@ -116,14 +101,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         
-        // 4. Merge data, Calculate scores, and Render page
         let masterQuestionData = [];
         Object.keys(questionMetadata).forEach(moduleName => {
             questionMetadata[moduleName].forEach(meta => {
                 const submission = studentSubmissions.find(s => s.question_id === meta.question_id) || {};
                 masterQuestionData.push({ 
                     module: moduleName, 
-                    is_correct: submission.is_correct === 'TRUE', // CSV values are strings
+                    is_correct: submission.is_correct === 'TRUE',
                     student_answer: submission.student_answer,
                     ...meta 
                 });
@@ -135,7 +119,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const totalRwQuestions = modulesConfig["English Module 1"].count + modulesConfig["English Module 2"].count;
         const totalMathQuestions = modulesConfig["Math Module 1"].count + modulesConfig["Math Module 2"].count;
         
-        // UPDATED CALL: Pass the new processed lookup map
         const rwScaledScore = getScaledScore(rwRawScore, 'RW', scoringTable);
         const mathScaledScore = getScaledScore(mathRawScore, 'Math', scoringTable);
         const totalScaledScore = rwScaledScore + mathScaledScore;
@@ -145,7 +128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('total-score').textContent = `${rwRawScore + mathRawScore}/${totalRwQuestions + totalMathQuestions} Raw | ${totalScaledScore} Scaled`;
 
         const modulesContainer = document.getElementById('modules-container');
-        modulesContainer.innerHTML = ''; // Clear previous content
+        modulesContainer.innerHTML = '';
         Object.keys(modulesConfig).forEach(moduleName => {
             const moduleWrapper = document.createElement('div');
             moduleWrapper.className = 'module';
@@ -175,8 +158,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         feedbackContent.innerHTML = '<p>Please click on a question number above to see the details.</p>';
 
-
-        // 5. Handle Interactivity
         modulesContainer.addEventListener('click', (event) => {
             if (event.target.tagName === 'A') {
                 event.preventDefault();
@@ -191,19 +172,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         feedbackContent.innerHTML = `<p style="color:red;">Error: Could not load data. Please check the console for details and ensure all GitHub URLs are correct.</p>`;
     }
 
+    // --- UPDATED FEEDBACK FUNCTION ---
     function displayFeedback(q) {
+        const feedbackContent = document.getElementById('feedback-content');
         const statusClass = q.is_correct ? 'status-correct' : 'status-incorrect';
         const statusText = q.is_correct ? 'Correct' : 'Incorrect';
+
+        // Helper to find the correct choice letter (e.g., 'A', 'B') from the answer value
+        const getChoiceLetter = (answerValue) => {
+            if (!answerValue) return "N/A";
+            if (q.option_a === answerValue) return 'A';
+            if (q.option_b === answerValue) return 'B';
+            if (q.option_c === answerValue) return 'C';
+            if (q.option_d === answerValue) return 'D';
+            if (q.option_e === answerValue) return 'E';
+            return answerValue; // Return the value itself if no option matches
+        };
+        
+        const correctChoiceLetter = getChoiceLetter(q.correct_answer);
+
+        // ** CHANGED LINES START HERE **
+        // The script now uses the correct property names from your JSON structure.
+        let questionDisplay = '';
+        if (q.passage_content) {
+            questionDisplay += `<p><em>${q.passage_content.replace(/______/g, '______')}</em></p>`;
+        }
+        questionDisplay += `<p><b>${q.question_stem || ''}</b></p>`;
 
         let html = `
             <p><span class="${statusClass}">${statusText}</span></p>
             <p><strong>Question:</strong> ${q.question_number} (Module: ${q.module})</p>
-            <div class="question-text">${q.question_text || 'Question text not available.'}</div>
+            <div class="question-text">${questionDisplay}</div>
             <p><strong>Your Choice:</strong> ${q.student_answer || "No Answer"}</p>
-            <p><strong>Correct Choice:</strong> ${q.correct_answer}</p>
+            <p><strong>Correct Choice:</strong> ${correctChoiceLetter} (${q.correct_answer})</p>
             <p><strong>Explanation:</strong></p>
-            <pre>${q.explanation || 'Explanation not available.'}</pre>
+            <pre>${q.explanation_ai_enhanced || q.explanation_original || 'Explanation not available.'}</pre>
         `;
+        // ** CHANGED LINES END HERE **
 
         feedbackContent.innerHTML = html;
         document.getElementById('feedback-container').scrollIntoView({ behavior: 'smooth', block: 'center' });

@@ -19,6 +19,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     // --- HELPER FUNCTIONS ---
+
+    // --- ADD THIS NEW FUNCTION IN ITS PLACE ---
+function parseCSV(text) {
+    let lines = text.split('\n');
+    // The first line contains the headers.
+    const headers = lines[0].split(',').map(h => h.trim());
+    const result = [];
+
+    // Loop through the data lines (starting from the second line).
+    for (let i = 1; i < lines.length; i++) {
+        if (!lines[i]) continue; // Skip empty lines.
+
+        const obj = {};
+        let values = [];
+        let current_value = '';
+        let in_quotes = false;
+
+        // This advanced loop correctly handles commas inside quotes.
+        for (const char of lines[i]) {
+            if (char === '"' && in_quotes) {
+                in_quotes = false;
+            } else if (char === '"' && !in_quotes) {
+                in_quotes = true;
+            } else if (char === ',' && !in_quotes) {
+                values.push(current_value.trim());
+                current_value = '';
+            } else {
+                current_value += char;
+            }
+        }
+        values.push(current_value.trim());
+
+        // Assign values to their corresponding headers.
+        for (let j = 0; j < headers.length; j++) {
+            let value = values[j] || '';
+            // Remove leading/trailing quotes if they exist from the parsed value.
+            if (value.startsWith('"') && value.endsWith('"')) {
+                value = value.substring(1, value.length - 1);
+            }
+            obj[headers[j]] = value;
+        }
+        result.push(obj);
+    }
+    return result;
+}
+    
+    /*
     function parseCSV(text) {
         const lines = text.split('\n');
         const headers = lines[0].split(',').map(h => h.trim());
@@ -34,7 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         return result;
     }
-
+    */
     function processScoringData(scoringArray) {
         const lookupTables = { RW: {}, Math: {} };
         const rawScoreKey = "Raw Score (# of Correct Answers)";

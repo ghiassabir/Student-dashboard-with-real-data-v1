@@ -35,11 +35,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         return result;
     }
 
+    // This function is now updated to use the "Upper" score range
     function processScoringData(scoringArray) {
         const lookupTables = { RW: {}, Math: {} };
         const rawScoreKey = "Raw Score (# of Correct Answers)";
-        const rwScaledScoreKey = "Test 0 RW Lower";
-        const mathScaledScoreKey = "Test 0 Math Lower";
+
+        // --- CHANGED LINES START HERE ---
+        // The script now dynamically creates the column names for the "Upper" range.
+        const rwScaledScoreKey = `Test ${TARGET_TEST_NUMBER} RW Upper`;
+        const mathScaledScoreKey = `Test ${TARGET_TEST_NUMBER} Math Upper`;
+        // --- CHANGED LINES END HERE ---
+        
+        console.log(`Using scoring columns: "${rwScaledScoreKey}" and "${mathScaledScoreKey}"`);
+
         scoringArray.forEach(row => {
             const rawScore = row[rawScoreKey];
             if (row[rwScaledScoreKey] !== undefined) {
@@ -56,7 +64,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         return table[rawScore] || 200;
     };
 
+
     // --- MAIN EXECUTION ---
+    // The main execution block remains the same.
     let studentEmail = localStorage.getItem('studentEmail');
     if (!studentEmail) {
         studentEmail = prompt("Please enter your student email address:");
@@ -145,8 +155,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 link.href = '#feedback-container';
                 link.textContent = `Q${q.question_number}`;
                 link.setAttribute('data-question-id', q.question_id);
-
-                // --- LOGIC ADDED FOR COLOR CODING ---
                 if (q.student_answer === undefined) {
                     link.classList.add('q-unanswered');
                 } else if (q.is_correct) {
@@ -154,8 +162,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else {
                     link.classList.add('q-incorrect');
                 }
-                // --- END OF ADDED LOGIC ---
-
                 list.appendChild(link);
             });
 
@@ -175,16 +181,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
     } catch (error) {
-        console.error("Failed to load or process diagnostic data:", error);
-        feedbackContent.innerHTML = `<p style="color:red;">Error: Could not load data. Please check the console for details and ensure all GitHub URLs are correct.</p>`;
+        console.error("ERROR:", error);
+        feedbackContent.innerHTML = `<p style="color:red;"><strong>An error occurred.</strong><br>${error.message}.<br><br>Please check the console for more details.</p>`;
     }
 
     function displayFeedback(q) {
-        // This function remains the same as the previous version
         const feedbackContent = document.getElementById('feedback-content');
         const statusClass = q.is_correct ? 'status-correct' : (q.student_answer === undefined ? '' : 'status-incorrect');
         const statusText = q.is_correct ? 'Correct' : (q.student_answer === undefined ? 'Unanswered' : 'Incorrect');
-
         const getChoiceLetter = (answerValue) => {
             if (!answerValue) return "N/A";
             if (q.option_a === answerValue) return 'A';
@@ -194,15 +198,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (q.option_e === answerValue) return 'E';
             return answerValue;
         };
-        
         const correctChoiceLetter = getChoiceLetter(q.correct_answer);
-
         let questionDisplay = '';
         if (q.passage_content) {
             questionDisplay += `<p><em>${q.passage_content.replace(/______/g, '______')}</em></p>`;
         }
         questionDisplay += `<p><b>${q.question_stem || ''}</b></p>`;
-
         let html = `
             <p><span class="${statusClass}">${statusText}</span></p>
             <p><strong>Question:</strong> ${q.question_number} (Module: ${q.module})</p>
@@ -212,7 +213,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             <p><strong>Explanation:</strong></p>
             <pre>${q.explanation_ai_enhanced || q.explanation_original || 'Explanation not available.'}</pre>
         `;
-
         feedbackContent.innerHTML = html;
         document.getElementById('feedback-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }

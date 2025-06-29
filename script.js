@@ -38,8 +38,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     function processScoringData(scoringArray) {
         const lookupTables = { RW: {}, Math: {} };
         const rawScoreKey = "Raw Score (# of Correct Answers)";
-        const rwScaledScoreKey = "Test 0 RW Lower";
-        const mathScaledScoreKey = "Test 0 Math Lower";
+        const rwScaledScoreKey = "Test 0 RW Upper";
+        const mathScaledScoreKey = "Test 0 Math Upper";
         scoringArray.forEach(row => {
             const rawScore = row[rawScoreKey];
             if (row[rwScaledScoreKey] !== undefined) {

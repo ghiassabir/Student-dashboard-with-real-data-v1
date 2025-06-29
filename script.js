@@ -1,61 +1,69 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- DATA ---
-    // This section contains mock data, representing what would be fetched from your sources.
+    // --- DATA GENERATION & MOCKING ---
 
-    // Mock Student Submissions (as if from Student_Quiz_Submissions)
-    const studentSubmissions = [
-        // RW Module 1
-        { "question_id": "DT-T0-RW-M1-1", "is_correct": true },
-        { "question_id": "DT-T0-RW-M1-2", "is_correct": false, "student_answer": "B" },
-        { "question_id": "DT-T0-RW-M1-3", "is_correct": true },
-        // RW Module 2
-        { "question_id": "DT-T0-RW-M2-1", "is_correct": true },
-        { "question_id": "DT-T0-RW-M2-2", "is_correct": true },
-        // Math Module 1
-        { "question_id": "DT-T0-M-M1-1", "is_correct": true },
-        { "question_id": "DT-T0-M-M1-2", "is_correct": true },
-        { "question_id": "DT-T0-M-M1-3", "is_correct": false, "student_answer": "A" },
-        // Math Module 2
-        { "question_id": "DT-T0-M-M2-1", "is_correct": true },
-        { "question_id": "DT-T0-M-M2-2", "is_correct": false, "student_answer": "15" },
-    ];
-
-    // Mock Question Metadata (as if from the question JSON files)
-    const questionMetadata = {
-        "DT-T0-RW-M1": [
-            { "question_id": "DT-T0-RW-M1-1", "question_number": 1, "correct_answer": "C", "explanation": "Explanation for RW-M1 Question 1." },
-            { "question_id": "DT-T0-RW-M1-2", "question_number": 2, "correct_answer": "D", "explanation": "Explanation for RW-M1 Question 2." },
-            { "question_id": "DT-T0-RW-M1-3", "question_number": 3, "correct_answer": "A", "explanation": "Explanation for RW-M1 Question 3." }
-        ],
-        "DT-T0-RW-M2": [
-            { "question_id": "DT-T0-RW-M2-1", "question_number": 1, "correct_answer": "A", "explanation": "Explanation for RW-M2 Question 1." },
-            { "question_id": "DT-T0-RW-M2-2", "question_number": 2, "correct_answer": "B", "explanation": "Explanation for RW-M2 Question 2." }
-        ],
-        "DT-T0-M-M1": [
-            { "question_id": "DT-T0-M-M1-1", "question_number": 1, "correct_answer": "24", "explanation": "Explanation for M-M1 Question 1." },
-            { "question_id": "DT-T0-M-M1-2", "question_number": 2, "correct_answer": "C", "explanation": "Explanation for M-M1 Question 2." },
-            { "question_id": "DT-T0-M-M1-3", "question_number": 3, "correct_answer": "B", "explanation": "Explanation for M-M1 Question 3." }
-        ],
-         "DT-T0-M-M2": [
-            { "question_id": "DT-T0-M-M2-1", "question_number": 1, "correct_answer": "-1", "explanation": "Explanation for M-M2 Question 1." },
-            { "question_id": "DT-T0-M-M2-2", "question_number": 2, "correct_answer": "25", "explanation": "Explanation for M-M2 Question 2." }
-        ]
+    const modulesConfig = {
+        "English Module 1": { type: 'RW', count: 27 },
+        "English Module 2": { type: 'RW', count: 27 },
+        "Math Module 1": { type: 'Math', count: 22 },
+        "Math Module 2": { type: 'Math', count: 22 }
     };
 
-    // Scaled Score Conversion Tables (derived from your CSVs for Test 0)
-    // In a real app, this would be fetched. For this page, we embed it.
-    const rwScoreTable = { 0: 200, 1: 210, 2: 210, 3: 210, 4: 210, 5: 220, /* add all 67 values here for full accuracy */ 54: 800 };
-    const mathScoreTable = { 0: 200, 1: 210, 2: 210, 3: 210, 4: 210, 5: 230, /* add all 55 values here */ 52: 800 };
+    let studentSubmissions = [];
+    let questionMetadata = {};
+
+    // Programmatically generate mock data
+    for (const moduleName in modulesConfig) {
+        questionMetadata[moduleName] = [];
+        const config = modulesConfig[moduleName];
+        for (let i = 1; i <= config.count; i++) {
+            const questionId = `${moduleName.replace(/ /g, '-')}-Q${i}`;
+            const isCorrect = Math.random() > 0.3; // Simulate ~70% accuracy
+
+            // Create submission data
+            studentSubmissions.push({
+                question_id: questionId,
+                is_correct: isCorrect,
+                student_answer: isCorrect ? 'Correct Mock Answer' : 'Incorrect Mock Answer'
+            });
+
+            // Create metadata
+            questionMetadata[moduleName].push({
+                question_id: questionId,
+                question_number: i,
+                correct_answer: 'Correct Mock Answer',
+                explanation: `This is the detailed explanation for ${moduleName}, Question ${i}.`
+            });
+        }
+    }
+
+    // --- SCALED SCORE CONVERSION LOGIC ---
+    // A simplified linear conversion for demonstration purposes.
+    // This should be replaced with full lookup tables for production.
+    const getScaledScore = (rawScore, subject) => {
+        const minScore = 200;
+        const maxScore = 800;
+        if (subject === 'RW') {
+            const maxRaw = modulesConfig["English Module 1"].count + modulesConfig["English Module 2"].count; // 54
+            if (rawScore === 0) return 200;
+            if (rawScore === maxRaw) return 800;
+            return Math.round(minScore + (rawScore / maxRaw) * (maxScore - minScore));
+        }
+        if (subject === 'Math') {
+            const maxRaw = modulesConfig["Math Module 1"].count + modulesConfig["Math Module 2"].count; // 44
+             if (rawScore === 0) return 200;
+            if (rawScore === maxRaw) return 800;
+            return Math.round(minScore + (rawScore / maxRaw) * (maxScore - minScore));
+        }
+        return 0;
+    };
 
 
-    // --- LOGIC ---
+    // --- MAIN LOGIC ---
 
     // 1. Merge all data into a single, easy-to-use structure
-    const allModules = Object.keys(questionMetadata);
     let masterQuestionData = [];
-
-    allModules.forEach(moduleName => {
+    Object.keys(questionMetadata).forEach(moduleName => {
         questionMetadata[moduleName].forEach(meta => {
             const submission = studentSubmissions.find(s => s.question_id === meta.question_id);
             masterQuestionData.push({
@@ -67,43 +75,47 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 2. Calculate Raw and Scaled Scores
-    const rwRawScore = masterQuestionData.filter(q => q.module.includes('RW') && q.is_correct).length;
-    const mathRawScore = masterQuestionData.filter(q => q.module.includes('M-M') && q.is_correct).length;
-    const totalRawCorrect = rwRawScore + mathRawScore;
-    const totalQuestions = masterQuestionData.length;
-
-    // Use tables to get scaled score. We use the "Lower" bound as discussed.
-    // Note: Using a simplified table here. For full accuracy, all rows from the CSV should be in the objects above.
-    const rwScaledScore = rwScoreTable[rwRawScore] || 200; // Default to 200 if score not in table
-    const mathScaledScore = mathScoreTable[mathRawScore] || 200;
+    const rwRawScore = masterQuestionData.filter(q => modulesConfig[q.module].type === 'RW' && q.is_correct).length;
+    const mathRawScore = masterQuestionData.filter(q => modulesConfig[q.module].type === 'Math' && q.is_correct).length;
+    const totalRwQuestions = modulesConfig["English Module 1"].count + modulesConfig["English Module 2"].count;
+    const totalMathQuestions = modulesConfig["Math Module 1"].count + modulesConfig["Math Module 2"].count;
+    
+    const rwScaledScore = getScaledScore(rwRawScore, 'RW');
+    const mathScaledScore = getScaledScore(mathRawScore, 'Math');
     const totalScaledScore = rwScaledScore + mathScaledScore;
-
 
     // 3. Render the page
     // Display scores
-    document.getElementById('raw-score').textContent = `${totalRawCorrect} / ${totalQuestions}`;
-    document.getElementById('scaled-score').textContent = totalScaledScore;
+    document.getElementById('english-score').textContent = `${rwRawScore}/${totalRwQuestions} Raw | ${rwScaledScore} Scaled`;
+    document.getElementById('math-score').textContent = `${mathRawScore}/${totalMathQuestions} Raw | ${mathScaledScore} Scaled`;
+    document.getElementById('total-score').textContent = `${rwRawScore + mathRawScore}/${totalRwQuestions + totalMathQuestions} Raw | ${totalScaledScore} Scaled`;
 
     // Display module lists
     const modulesContainer = document.getElementById('modules-container');
-    allModules.forEach(moduleName => {
-        const moduleDiv = document.createElement('div');
-        moduleDiv.className = 'module';
+    Object.keys(modulesConfig).forEach(moduleName => {
+        const moduleWrapper = document.createElement('div');
+        moduleWrapper.className = 'module';
+        
+        const header = document.createElement('div');
+        header.className = 'module-header';
+        header.textContent = moduleName;
+        moduleWrapper.appendChild(header);
 
-        const title = document.createElement('h3');
-        title.textContent = moduleName;
-        moduleDiv.appendChild(title);
-
+        const list = document.createElement('div');
+        list.className = 'question-list';
+        list.setAttribute('data-module-name', moduleName);
+        
         const questionsInModule = masterQuestionData.filter(q => q.module === moduleName);
         questionsInModule.forEach(q => {
             const link = document.createElement('a');
-            link.href = '#';
+            link.href = '#feedback-container';
             link.textContent = `Q${q.question_number}`;
             link.setAttribute('data-question-id', q.question_id);
-            moduleDiv.appendChild(link);
+            list.appendChild(link);
         });
 
-        modulesContainer.appendChild(moduleDiv);
+        moduleWrapper.appendChild(list);
+        modulesContainer.appendChild(moduleWrapper);
     });
 
     // 4. Handle Interactivity
@@ -137,6 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         feedbackContent.innerHTML = html;
-        feedbackContent.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById('feedback-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 });

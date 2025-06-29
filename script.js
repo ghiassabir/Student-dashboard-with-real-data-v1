@@ -12,14 +12,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const modulesConfig = {
-        "English Module 1": { type: 'RW', count: 27, dataKey: 'eng1' },
-        "English Module 2": { type: 'RW', count: 27, dataKey: 'eng2' },
-        "Math Module 1": { type: 'Math', count: 22, dataKey: 'math1' },
-        "Math Module 2": { type: 'Math', count: 22, dataKey: 'math2' }
+        "English Module 1": { type: 'RW' },
+        "English Module 2": { type: 'RW' },
+        "Math Module 1": { type: 'Math' },
+        "Math Module 2": { type: 'Math' }
     };
 
     // --- HELPER FUNCTIONS ---
-
     function parseCSV(text) {
         const lines = text.split('\n');
         const headers = lines[0].split(',').map(h => h.trim());
@@ -41,7 +40,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rawScoreKey = "Raw Score (# of Correct Answers)";
         const rwScaledScoreKey = "Test 0 RW Lower";
         const mathScaledScoreKey = "Test 0 Math Lower";
-
         scoringArray.forEach(row => {
             const rawScore = row[rawScoreKey];
             if (row[rwScaledScoreKey] !== undefined) {
@@ -58,9 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return table[rawScore] || 200;
     };
 
-
     // --- MAIN EXECUTION ---
-
     let studentEmail = localStorage.getItem('studentEmail');
     if (!studentEmail) {
         studentEmail = prompt("Please enter your student email address:");
@@ -103,12 +99,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         let masterQuestionData = [];
         Object.keys(questionMetadata).forEach(moduleName => {
-            questionMetadata[moduleName].forEach(meta => {
-                const submission = studentSubmissions.find(s => s.question_id === meta.question_id) || {};
+            (questionMetadata[moduleName] || []).forEach(meta => {
+                const submission = studentSubmissions.find(s => s.question_id === meta.question_id);
                 masterQuestionData.push({ 
                     module: moduleName, 
-                    is_correct: submission.is_correct === 'TRUE',
-                    student_answer: submission.student_answer,
+                    is_correct: submission ? submission.is_correct === 'TRUE' : undefined,
+                    student_answer: submission ? submission.student_answer : undefined,
                     ...meta 
                 });
             });
@@ -116,8 +112,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const rwRawScore = masterQuestionData.filter(q => modulesConfig[q.module].type === 'RW' && q.is_correct).length;
         const mathRawScore = masterQuestionData.filter(q => modulesConfig[q.module].type === 'Math' && q.is_correct).length;
-        const totalRwQuestions = modulesConfig["English Module 1"].count + modulesConfig["English Module 2"].count;
-        const totalMathQuestions = modulesConfig["Math Module 1"].count + modulesConfig["Math Module 2"].count;
+        const totalRwQuestions = (questionMetadata["English Module 1"] || []).length + (questionMetadata["English Module 2"] || []).length;
+        const totalMathQuestions = (questionMetadata["Math Module 1"] || []).length + (questionMetadata["Math Module 2"] || []).length;
         
         const rwScaledScore = getScaledScore(rwRawScore, 'RW', scoringTable);
         const mathScaledScore = getScaledScore(mathRawScore, 'Math', scoringTable);
@@ -149,6 +145,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 link.href = '#feedback-container';
                 link.textContent = `Q${q.question_number}`;
                 link.setAttribute('data-question-id', q.question_id);
+
+                // --- LOGIC ADDED FOR COLOR CODING ---
+                if (q.student_answer === undefined) {
+                    link.classList.add('q-unanswered');
+                } else if (q.is_correct) {
+                    link.classList.add('q-correct');
+                } else {
+                    link.classList.add('q-incorrect');
+                }
+                // --- END OF ADDED LOGIC ---
+
                 list.appendChild(link);
             });
 
@@ -172,13 +179,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         feedbackContent.innerHTML = `<p style="color:red;">Error: Could not load data. Please check the console for details and ensure all GitHub URLs are correct.</p>`;
     }
 
-    // --- UPDATED FEEDBACK FUNCTION ---
     function displayFeedback(q) {
+        // This function remains the same as the previous version
         const feedbackContent = document.getElementById('feedback-content');
-        const statusClass = q.is_correct ? 'status-correct' : 'status-incorrect';
-        const statusText = q.is_correct ? 'Correct' : 'Incorrect';
+        const statusClass = q.is_correct ? 'status-correct' : (q.student_answer === undefined ? '' : 'status-incorrect');
+        const statusText = q.is_correct ? 'Correct' : (q.student_answer === undefined ? 'Unanswered' : 'Incorrect');
 
-        // Helper to find the correct choice letter (e.g., 'A', 'B') from the answer value
         const getChoiceLetter = (answerValue) => {
             if (!answerValue) return "N/A";
             if (q.option_a === answerValue) return 'A';
@@ -186,13 +192,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (q.option_c === answerValue) return 'C';
             if (q.option_d === answerValue) return 'D';
             if (q.option_e === answerValue) return 'E';
-            return answerValue; // Return the value itself if no option matches
+            return answerValue;
         };
         
         const correctChoiceLetter = getChoiceLetter(q.correct_answer);
 
-        // ** CHANGED LINES START HERE **
-        // The script now uses the correct property names from your JSON structure.
         let questionDisplay = '';
         if (q.passage_content) {
             questionDisplay += `<p><em>${q.passage_content.replace(/______/g, '______')}</em></p>`;
@@ -203,12 +207,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             <p><span class="${statusClass}">${statusText}</span></p>
             <p><strong>Question:</strong> ${q.question_number} (Module: ${q.module})</p>
             <div class="question-text">${questionDisplay}</div>
-            <p><strong>Your Choice:</strong> ${q.student_answer || "No Answer"}</p>
+            <p><strong>Your Choice:</strong> ${q.student_answer || "Not Answered"}</p>
             <p><strong>Correct Choice:</strong> ${correctChoiceLetter} (${q.correct_answer})</p>
             <p><strong>Explanation:</strong></p>
             <pre>${q.explanation_ai_enhanced || q.explanation_original || 'Explanation not available.'}</pre>
         `;
-        // ** CHANGED LINES END HERE **
 
         feedbackContent.innerHTML = html;
         document.getElementById('feedback-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
